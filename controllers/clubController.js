@@ -1,4 +1,4 @@
-const {Club, Officer, ClubEvent, News, UserClub, User} = require('../models');
+const {Club, Officer, ClubEvent, News, UserClub, User, TeacherClaim} = require('../models');
 const {Op} = require("sequelize");
 
 
@@ -101,6 +101,11 @@ module.exports.displayClub = async function(req, res, next) {
             isMember = club.users.some(u => u.id === req.user.id)
         }
 
+        let isAdvisor = false;
+        if (req.user && club.users === "teacher") {
+            isAdvisor = club.users === "teacher".some(u => u.id === req.user.id)
+        }
+
         // Convert to plain object to ensure associations are accessible
         const clubPlain = club.get({ plain: true });
 
@@ -129,7 +134,9 @@ module.exports.displayClub = async function(req, res, next) {
         res.render('clubs/club', {
             title: club.clubname,
             club: formattedClub,
-            isMember: isMember
+            isMember: isMember,
+            isAdvisor: isAdvisor,
+            user: req.user
         });
     } catch (error) {
         console.error('Error fetching club:', error);
@@ -139,9 +146,13 @@ module.exports.displayClub = async function(req, res, next) {
 
 module.exports.renderEditClub = async function(req, res) {
 
-        const club = await Club.findByPk(req.params.clubId);
-        if (!club) return res.status(404).send('Club not found');
-        res.render('clubs/editClub', {title: 'Edit Club', club});
+    const club = await Club.findByPk(req.params.clubId);
+    if (!club) return res.status(404).send('Club not found');
+    res.render('clubs/editClub', {
+        title: 'Edit Club',
+        club,
+        user: req.user
+    });
 };
 
 module.exports.updateClub = async function(req, res) {
@@ -270,11 +281,8 @@ module.exports.removeOfficerFromClub = async function(req, res) {
 
 
 module.exports.joinClub = async function(req, res) {
-
     const clubId = req.params.clubId;
     const userId = req.user.id;
-
-
 
     await UserClub.create({
         user_id: userId,
@@ -290,6 +298,30 @@ module.exports.leaveClub = async function(req, res) {
         where: {
             club_id: clubId,
             user_id: userId,
+        }
+    });
+    res.redirect(`/clubs/${clubId}`);
+}
+
+module.exports.claimClub = async function(req, res) {
+    const clubId = req.params.clubId;
+    const teacherId = req.user.id;
+
+    await TeacherClaim.create({
+        teacher_id: teacherId,
+        club_id: clubId
+    });
+    res.redirect(`/clubs/${clubId}`);
+}
+
+module.exports.disclaimClub = async function(req, res) {
+    const clubId = req.params.clubId;
+    const teacherId = req.user.id;
+
+    await TeacherClaim.destroy({
+        where: {
+            teacher_id: teacherId,
+            club_id: clubId,
         }
     });
     res.redirect(`/clubs/${clubId}`);
